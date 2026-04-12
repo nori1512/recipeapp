@@ -137,6 +137,7 @@ struct WeekListView: View {
 
 struct DayCard: View {
     let day: Day
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         VStack(spacing: 0) {
@@ -153,10 +154,9 @@ struct DayCard: View {
             // 料理行
             ForEach(DishKind.allCases, id: \.self) { kind in
                 if let dish = day.dish(for: kind) {
-                    NavigationLink(destination: DishEditView(dish: dish)) {
-                        DishRow(dish: dish)
-                    }
-                    .buttonStyle(.plain)
+                    DishRowSwipeable(dish: dish, onClear: {
+                        clearDish(dish)
+                    })
                     if kind != .soup { Divider().padding(.leading, 14) }
                 }
             }
@@ -167,6 +167,38 @@ struct DayCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
+    }
+
+    // メニュー名・材料・メモ・写真・リンクをすべてクリア
+    private func clearDish(_ dish: Dish) {
+        dish.menuName = ""
+        dish.memo = ""
+        dish.ingredients.forEach { context.delete($0) }
+        dish.photos.forEach { context.delete($0) }
+        dish.links.forEach { context.delete($0) }
+        try? context.save()
+    }
+}
+
+// MARK: - DishRowSwipeable
+
+struct DishRowSwipeable: View {
+    let dish: Dish
+    let onClear: () -> Void
+
+    var body: some View {
+        NavigationLink(destination: DishEditView(dish: dish)) {
+            DishRow(dish: dish)
+        }
+        .buttonStyle(.plain)
+        // 内容が入っているときだけスワイプ削除を有効にする
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if !dish.menuName.isEmpty {
+                Button(role: .destructive, action: onClear) {
+                    Label("クリア", systemImage: "trash")
+                }
+            }
+        }
     }
 }
 
