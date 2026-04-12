@@ -7,6 +7,6 @@ struct RecipeApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: [Week.self, Day.self, Dish.self, Ingredient.self, RecipeLink.self, RecipePhoto.self])
+        .modelContainer(for: [Week.self, Day.self, Dish.self, Ingredient.self, RecipeLink.self, RecipePhoto.self, CookingStep.self])
     }
 }

@@ -16,8 +16,12 @@ struct DishEditView: View {
 
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var showLinkInput = false
-
     @State private var showClearAlert = false
+
+    // 工程：テキストと写真データをセットで管理
+    @State private var steps: [(text: String, photoData: Data?)] = []
+    @State private var stepPhotoPickerIndex: Int? = nil
+    @State private var stepSelectedPhoto: [PhotosPickerItem] = []
 
     var body: some View {
         NavigationStack {
@@ -27,6 +31,7 @@ struct DishEditView: View {
                     photoSection
                     linkSection
                     ingredientSection
+                    stepSection
                     memoSection
                     clearSection
                 }
@@ -220,6 +225,143 @@ struct DishEditView: View {
         }
     }
 
+    private var stepSection: some View {
+        SectionCard(label: "作り方") {
+            VStack(spacing: 10) {
+                ForEach(steps.indices, id: \.self) { i in
+                    VStack(spacing: 8) {
+                        HStack(alignment: .top, spacing: 10) {
+                            // ステップ番号
+                            ZStack {
+                                Circle()
+                                    .fill(Color.primary)
+                                    .frame(width: 24, height: 24)
+                                Text("\(i + 1)")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Color(.systemBackground))
+                            }
+                            .padding(.top, 9)
+
+                            // テキスト入力
+                            TextField("工程を入力", text: Binding(
+                                get: { steps[i].text },
+                                set: { steps[i].text = $0 }
+                            ), axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .lineLimit(2...6)
+                            .padding(9)
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                            // 削除ボタン
+                            Button {
+                                steps.remove(at: i)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.red)
+                                    .font(.system(size: 20))
+                            }
+                            .padding(.top, 9)
+                        }
+
+                        // 工程写真
+                        HStack(spacing: 8) {
+                            // 既存写真サムネイル
+                            if let data = steps[i].photoData,
+                               let uiImage = UIImage(data: data) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 72, height: 72)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    Button {
+                                        steps[i].photoData = nil
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(.white, .black.opacity(0.5))
+                                    }
+                                    .offset(x: 4, y: -4)
+                                }
+                            }
+
+                            // 写真追加ボタン
+                            if steps[i].photoData == nil {
+                                PhotosPicker(
+                                    selection: Binding(
+                                        get: { stepSelectedPhoto },
+                                        set: { newVal in
+                                            stepSelectedPhoto = newVal
+                                            stepPhotoPickerIndex = i
+                                        }
+                                    ),
+                                    matching: .images
+                                ) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "camera")
+                                            .font(.system(size: 12))
+                                        Text("写真を追加")
+                                            .font(.system(size: 12))
+                                    }
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
+                                    .background(Color(.secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(style: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                                            .foregroundStyle(Color.secondary.opacity(0.4))
+                                    )
+                                }
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.leading, 34)
+                    }
+                    .padding(10)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                // 工程追加ボタン
+                Button {
+                    steps.append((text: "", photoData: nil))
+                } label: {
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("工程を追加")
+                    }
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(style: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                            .foregroundStyle(Color.secondary.opacity(0.4))
+                    )
+                }
+            }
+            .onChange(of: stepSelectedPhoto) { _, items in
+                guard let idx = stepPhotoPickerIndex,
+                      let item = items.first else { return }
+                item.loadTransferable(type: Data.self) { result in
+                    if case .success(let data) = result, let data {
+                        DispatchQueue.main.async {
+                            steps[idx].photoData = data
+                            stepSelectedPhoto = []
+                            stepPhotoPickerIndex = nil
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var memoSection: some View {
         SectionCard(label: "メモ") {
             TextField("調理のポイントなど", text: $memo, axis: .vertical)
@@ -257,19 +399,29 @@ struct DishEditView: View {
         memo = dish.memo
         ingredients = dish.sortedIngredients.map { (name: $0.name, amount: $0.amount) }
         if ingredients.isEmpty { ingredients = [("", "")] }
+        steps = dish.sortedSteps.map { (text: $0.text, photoData: $0.photoData) }
     }
 
     private func save() {
         dish.menuName = menuName
         dish.memo = memo
 
-        // Ingredients: 既存を削除して再作成
+        // 材料：既存を削除して再作成
         dish.ingredients.forEach { context.delete($0) }
         let filtered = ingredients.filter { !$0.name.isEmpty }
         for (i, item) in filtered.enumerated() {
             let ing = Ingredient(name: item.name, amount: item.amount, sortIndex: i)
             ing.dish = dish
             context.insert(ing)
+        }
+
+        // 工程：既存を削除して再作成
+        dish.steps.forEach { context.delete($0) }
+        let filteredSteps = steps.filter { !$0.text.isEmpty }
+        for (i, step) in filteredSteps.enumerated() {
+            let s = CookingStep(text: step.text, sortIndex: i, photoData: step.photoData)
+            s.dish = dish
+            context.insert(s)
         }
 
         try? context.save()
@@ -282,6 +434,7 @@ struct DishEditView: View {
         dish.ingredients.forEach { context.delete($0) }
         dish.photos.forEach { context.delete($0) }
         dish.links.forEach { context.delete($0) }
+        dish.steps.forEach { context.delete($0) }
         try? context.save()
         dismiss()
     }

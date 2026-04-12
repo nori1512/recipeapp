@@ -65,6 +65,7 @@ class Dish {
     @Relationship(deleteRule: .cascade) var ingredients: [Ingredient] = []
     @Relationship(deleteRule: .cascade) var links: [RecipeLink] = []
     @Relationship(deleteRule: .cascade) var photos: [RecipePhoto] = []
+    @Relationship(deleteRule: .cascade) var steps: [CookingStep] = []
 
     init(kind: DishKind, menuName: String = "") {
         self.kindRaw = kind.rawValue
@@ -79,6 +80,26 @@ class Dish {
 
     var sortedIngredients: [Ingredient] {
         ingredients.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    var sortedSteps: [CookingStep] {
+        steps.sorted { $0.sortIndex < $1.sortIndex }
+    }
+}
+
+// MARK: - CookingStep
+
+@Model
+class CookingStep {
+    var text: String           // 工程の説明文
+    var sortIndex: Int
+    var photoData: Data?       // 工程ごとの写真（任意）
+    var dish: Dish?
+
+    init(text: String = "", sortIndex: Int = 0, photoData: Data? = nil) {
+        self.text = text
+        self.sortIndex = sortIndex
+        self.photoData = photoData
     }
 }
 
