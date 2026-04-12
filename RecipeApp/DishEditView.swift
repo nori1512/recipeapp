@@ -2,6 +2,18 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+    // 工程の編集用ドラフト型（タプルではなくclassにすることでBindingが正しく動く）
+    @Observable
+    class StepDraft: Identifiable {
+        let id = UUID()
+        var text: String
+        var photoData: Data?
+        init(text: String = "", photoData: Data? = nil) {
+            self.text = text
+            self.photoData = photoData
+        }
+    }
+
 struct DishEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -18,8 +30,8 @@ struct DishEditView: View {
     @State private var showLinkInput = false
     @State private var showClearAlert = false
 
-    // 工程：テキストと写真データをセットで管理
-    @State private var steps: [(text: String, photoData: Data?)] = []
+    // 工程
+    @State private var steps: [StepDraft] = []
     @State private var stepPhotoPickerIndex: Int? = nil
     @State private var stepSelectedPhoto: [PhotosPickerItem] = []
 
@@ -228,7 +240,8 @@ struct DishEditView: View {
     private var stepSection: some View {
         SectionCard(label: "作り方") {
             VStack(spacing: 10) {
-                ForEach(steps.indices, id: \.self) { i in
+                ForEach(steps) { step in
+                    let i = steps.firstIndex(where: { $0.id == step.id })!
                     VStack(spacing: 8) {
                         HStack(alignment: .top, spacing: 10) {
                             // ステップ番号
@@ -242,17 +255,14 @@ struct DishEditView: View {
                             }
                             .padding(.top, 9)
 
-                            // テキスト入力
-                            TextField("工程を入力", text: Binding(
-                                get: { steps[i].text },
-                                set: { steps[i].text = $0 }
-                            ), axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13))
-                            .lineLimit(2...6)
-                            .padding(9)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            // テキスト入力（StepDraftのプロパティに直接バインド）
+                            TextField("工程を入力", text: Bindable(step).text, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13))
+                                .lineLimit(2...6)
+                                .padding(9)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
 
                             // 削除ボタン
                             Button {
@@ -267,8 +277,7 @@ struct DishEditView: View {
 
                         // 工程写真
                         HStack(spacing: 8) {
-                            // 既存写真サムネイル
-                            if let data = steps[i].photoData,
+                            if let data = step.photoData,
                                let uiImage = UIImage(data: data) {
                                 ZStack(alignment: .topTrailing) {
                                     Image(uiImage: uiImage)
@@ -277,7 +286,7 @@ struct DishEditView: View {
                                         .frame(width: 72, height: 72)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                     Button {
-                                        steps[i].photoData = nil
+                                        step.photoData = nil
                                     } label: {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 16))
@@ -287,8 +296,7 @@ struct DishEditView: View {
                                 }
                             }
 
-                            // 写真追加ボタン
-                            if steps[i].photoData == nil {
+                            if step.photoData == nil {
                                 PhotosPicker(
                                     selection: Binding(
                                         get: { stepSelectedPhoto },
@@ -317,7 +325,6 @@ struct DishEditView: View {
                                     )
                                 }
                             }
-
                             Spacer()
                         }
                         .padding(.leading, 34)
@@ -329,7 +336,7 @@ struct DishEditView: View {
 
                 // 工程追加ボタン
                 Button {
-                    steps.append((text: "", photoData: nil))
+                    steps.append(StepDraft())
                 } label: {
                     HStack {
                         Image(systemName: "plus")
@@ -399,7 +406,7 @@ struct DishEditView: View {
         memo = dish.memo
         ingredients = dish.sortedIngredients.map { (name: $0.name, amount: $0.amount) }
         if ingredients.isEmpty { ingredients = [("", "")] }
-        steps = dish.sortedSteps.map { (text: $0.text, photoData: $0.photoData) }
+        steps = dish.sortedSteps.map { StepDraft(text: $0.text, photoData: $0.photoData) }
     }
 
     private func save() {
@@ -415,11 +422,10 @@ struct DishEditView: View {
             context.insert(ing)
         }
 
-        // 工程：既存を削除して再作成
+        // 工程：既存を削除して再作成（空テキストも含めて保存し、表示側でフィルタ）
         dish.steps.forEach { context.delete($0) }
-        let filteredSteps = steps.filter { !$0.text.isEmpty }
-        for (i, step) in filteredSteps.enumerated() {
-            let s = CookingStep(text: step.text, sortIndex: i, photoData: step.photoData)
+        for (i, draft) in steps.enumerated() where !draft.text.isEmpty {
+            let s = CookingStep(text: draft.text, sortIndex: i, photoData: draft.photoData)
             s.dish = dish
             context.insert(s)
         }
