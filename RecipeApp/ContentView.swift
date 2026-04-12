@@ -1,24 +1,20 @@
-//
-//  ContentView.swift
-//  RecipeApp
-//
-//  Created by 大月教史 on 2026/04/04.
-//
-
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            WeekListView()
+                .tabItem {
+                    Label("週間", systemImage: "calendar")
+                }
+            IngredientSummaryView()
+                .tabItem {
+                    Label("食材集計", systemImage: "cart")
+                }
+            RecipeCollectionView()
+                .tabItem {
+                    Label("レシピ集", systemImage: "book")
+                }
         }
-        .padding()
     }
-}
-
-#Preview {
-    ContentView()
 }
