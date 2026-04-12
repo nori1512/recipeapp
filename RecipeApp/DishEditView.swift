@@ -17,6 +17,8 @@ struct DishEditView: View {
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var showLinkInput = false
 
+    @State private var showClearAlert = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -26,6 +28,7 @@ struct DishEditView: View {
                     linkSection
                     ingredientSection
                     memoSection
+                    clearSection
                 }
                 .padding(14)
             }
@@ -42,6 +45,12 @@ struct DishEditView: View {
                 }
             }
             .onAppear { load() }
+            .alert("内容をクリアしますか？", isPresented: $showClearAlert) {
+                Button("クリア", role: .destructive) { clearDish() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("メニュー名・材料・写真・リンク・メモがすべて削除されます。")
+            }
         }
     }
 
@@ -223,6 +232,24 @@ struct DishEditView: View {
         }
     }
 
+    private var clearSection: some View {
+        Button {
+            showClearAlert = true
+        } label: {
+            Text("内容をクリア")
+                .font(.system(size: 15))
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.red.opacity(0.3), lineWidth: 0.5)
+                )
+        }
+    }
+
     // MARK: - Load / Save
 
     private func load() {
@@ -245,6 +272,16 @@ struct DishEditView: View {
             context.insert(ing)
         }
 
+        try? context.save()
+        dismiss()
+    }
+
+    private func clearDish() {
+        dish.menuName = ""
+        dish.memo = ""
+        dish.ingredients.forEach { context.delete($0) }
+        dish.photos.forEach { context.delete($0) }
+        dish.links.forEach { context.delete($0) }
         try? context.save()
         dismiss()
     }
