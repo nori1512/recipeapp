@@ -22,6 +22,7 @@ struct DishEditView: View {
 
     @State private var menuName: String = ""
     @State private var memo: String = ""
+    @State private var selectedKind: DishKind = .main
     @State private var ingredients: [(name: String, amount: String)] = []
     @State private var linkURL: String = ""
     @State private var linkTitle: String = ""
@@ -39,6 +40,7 @@ struct DishEditView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
+                    kindSection
                     menuNameSection
                     photoSection
                     linkSection
@@ -72,6 +74,17 @@ struct DishEditView: View {
     }
 
     // MARK: - Sections
+
+    private var kindSection: some View {
+        SectionCard(label: "種類") {
+            Picker("種類", selection: $selectedKind) {
+                ForEach(DishKind.allCases, id: \.self) { kind in
+                    Text(kind.rawValue).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
 
     private var menuNameSection: some View {
         SectionCard(label: "メニュー名") {
@@ -404,6 +417,7 @@ struct DishEditView: View {
     private func load() {
         menuName = dish.menuName
         memo = dish.memo
+        selectedKind = dish.kind
         ingredients = dish.sortedIngredients.map { (name: $0.name, amount: $0.amount) }
         if ingredients.isEmpty { ingredients = [("", "")] }
         steps = dish.sortedSteps.map { StepDraft(text: $0.text, photoData: $0.photoData) }
@@ -412,6 +426,7 @@ struct DishEditView: View {
     private func save() {
         dish.menuName = menuName
         dish.memo = memo
+        dish.kind = selectedKind
 
         // 材料：既存を削除して再作成
         dish.ingredients.forEach { context.delete($0) }

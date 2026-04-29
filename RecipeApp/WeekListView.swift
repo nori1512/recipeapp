@@ -124,11 +124,7 @@ struct WeekListView: View {
             let day = Day(weekdayIndex: dayIndex)
             day.week = week
             context.insert(day)
-            for kind in DishKind.allCases {
-                let dish = Dish(kind: kind)
-                dish.day = day
-                context.insert(dish)
-            }
+            // 初期Dishは生成しない（ユーザーが自由に追加）
         }
     }
 }
@@ -137,6 +133,8 @@ struct WeekListView: View {
 
 struct DayCard: View {
     let day: Day
+    @Environment(\.modelContext) private var context
+    @State private var showAddSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -145,19 +143,51 @@ struct DayCard: View {
                 Text(day.weekdayName)
                     .font(.system(size: 15, weight: .medium))
                 Spacer()
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .overlay(alignment: .bottom) { Divider() }
 
-            // 料理行 → タップで閲覧画面へ
-            ForEach(DishKind.allCases, id: \.self) { kind in
-                if let dish = day.dish(for: kind) {
+            if day.sortedDishes.isEmpty {
+                // 料理未登録のとき
+                Button {
+                    showAddSheet = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        Text("料理を追加")
+                            .font(.system(size: 13))
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                }
+            } else {
+                Divider().padding(.horizontal, 0)
+                // 料理行
+                ForEach(Array(day.sortedDishes.enumerated()), id: \.element.id) { index, dish in
                     NavigationLink(destination: DishDetailView(dish: dish)) {
                         DishRow(dish: dish)
                     }
                     .buttonStyle(.plain)
-                    if kind != .soup { Divider().padding(.leading, 14) }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            context.delete(dish)
+                            try? context.save()
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
+                    }
+                    if index < day.sortedDishes.count - 1 {
+                        Divider().padding(.leading, 14)
+                    }
                 }
             }
         }
@@ -167,6 +197,9 @@ struct DayCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
+        .sheet(isPresented: $showAddSheet) {
+            AddDishSheet(day: day)
+        }
     }
 }
 
@@ -215,9 +248,61 @@ struct DishKindTag: View {
 
     private var bgColor: Color {
         switch kind {
-        case .main: return .blue
-        case .side: return .green
-        case .soup: return .orange
+        case .staple: return .brown
+        case .main:   return .blue
+        case .side:   return .green
+        case .soup:   return .orange
+        case .other:  return .purple
         }
+    }
+}
+
+// MARK: - AddDishSheet（料理追加シート）
+
+struct AddDishSheet: View {
+    let day: Day
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedKind: DishKind = .main
+    @State private var menuName: String = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("種類") {
+                    Picker("種類", selection: $selectedKind) {
+                        ForEach(DishKind.allCases, id: \.self) { kind in
+                            Text(kind.rawValue).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                }
+                Section("メニュー名（任意）") {
+                    TextField("例：ご飯、鶏の照り焼き", text: $menuName)
+                }
+            }
+            .navigationTitle("料理を追加")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("追加") { addDish() }
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+
+    private func addDish() {
+        let newIndex = day.dishes.count
+        let dish = Dish(kind: selectedKind, menuName: menuName, sortIndex: newIndex)
+        dish.day = day
+        context.insert(dish)
+        try? context.save()
+        dismiss()
     }
 }
