@@ -43,19 +43,17 @@ class Day {
         ["月", "火", "水", "木", "金"][weekdayIndex]
     }
 
-    var sortedDishes: [Dish] {
-        dishes.sorted { $0.sortIndex < $1.sortIndex }
+    func dish(for kind: DishKind) -> Dish? {
+        dishes.first { $0.kind == kind }
     }
 }
 
 // MARK: - Dish
 
 enum DishKind: String, Codable, CaseIterable {
-    case staple = "主食"
-    case main   = "主菜"
-    case side   = "副菜"
-    case soup   = "汁物"
-    case other  = "その他"
+    case main  = "主菜"
+    case side  = "副菜"
+    case soup  = "汁物"
 }
 
 @Model
@@ -63,18 +61,16 @@ class Dish {
     var kindRaw: String
     var menuName: String
     var memo: String
-    var sortIndex: Int
     var day: Day?
     @Relationship(deleteRule: .cascade) var ingredients: [Ingredient] = []
     @Relationship(deleteRule: .cascade) var links: [RecipeLink] = []
     @Relationship(deleteRule: .cascade) var photos: [RecipePhoto] = []
     @Relationship(deleteRule: .cascade) var steps: [CookingStep] = []
 
-    init(kind: DishKind, menuName: String = "", sortIndex: Int = 0) {
+    init(kind: DishKind, menuName: String = "") {
         self.kindRaw = kind.rawValue
         self.menuName = menuName
         self.memo = ""
-        self.sortIndex = sortIndex
     }
 
     var kind: DishKind {
